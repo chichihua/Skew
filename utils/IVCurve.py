@@ -92,7 +92,7 @@ class IVCurve(FindContracts):
         count = 0
         cap = self.synfutures_n * 2 + 1
         loc = np.where(np.array(call_ids) == atm_call)[0][0]
-        print(call_prices[loc], put_prices[loc], k_list[loc])
+        # print(call_prices[loc], put_prices[loc], k_list[loc])
         try:
             for n in range(len(call_prices)):
                 if n == 0:
