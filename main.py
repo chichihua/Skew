@@ -15,6 +15,7 @@ if __name__ == '__main__':
     start_date = '2019-01-01'
     end_date = '2019-01-10'
     dates = [d for d in w.tdays(start_date, end_date, '').Data[0]]
+    # dates = [datetime.strptime('2019-01-04', '%Y-%m-%d')]
 
     tt = 0                            # 剩余交易天数 < tt: 剔除该月份合约
     # ======================== 以下参数如不设置则为默认值 ======================== #

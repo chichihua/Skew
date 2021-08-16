@@ -187,31 +187,32 @@ class IVCurve(FindContracts):
             if k_list[i] == atm_k:
                 call_iv = self.calc_iv(call_prices[i], f, k_list[i], t, 'c')
                 put_iv = self.calc_iv(put_prices[i], f, k_list[i], t, 'p')
-                strike_curve[k_list[i]] = (call_iv + put_iv) / 2
+                strike_curve.iloc[i] = (call_iv + put_iv) / 2
+                # strike_curve[k_list[i]] 改为 strike_curve.iloc[i]: 按整数index写入series，防止K一致时索引至两行值
                 # atm put greeks
                 append_row['Delta'], append_row['Gamma'], append_row['Vega'], append_row['Theta'] = self.calc_greeks(
-                    'p', f, k_list[i], t, strike_curve[k_list[i]])
+                    'p', f, k_list[i], t, strike_curve.iloc[i])
                 greeks = greeks.append(append_row, ignore_index=True)
                 # atm call greeks
                 append_row['Delta'], append_row['Gamma'], append_row['Vega'], append_row['Theta'] = self.calc_greeks(
-                    'c', f, k_list[i], t, strike_curve[k_list[i]])
+                    'c', f, k_list[i], t, strike_curve.iloc[i])
                 greeks = greeks.append(append_row, ignore_index=True)
             elif k_list[i] > atm_k:
-                strike_curve[k_list[i]] = self.calc_iv(call_prices[i], f, k_list[i], t, 'c')
+                strike_curve.iloc[i] = self.calc_iv(call_prices[i], f, k_list[i], t, 'c')
                 # print('K = %.4f , Call Price = %.4f, ID: %s' % (k_list[i], call_prices[i], call_ids[i]))
                 append_row['Delta'], append_row['Gamma'], append_row['Vega'], append_row['Theta'] = self.calc_greeks(
-                    'c', f, k_list[i], t, strike_curve[k_list[i]])
+                    'c', f, k_list[i], t, strike_curve.iloc[i])
                 greeks = greeks.append(append_row, ignore_index=True)
                 # print('')  # debug line
             elif k_list[i] < atm_k:
-                strike_curve[k_list[i]] = self.calc_iv(put_prices[i], f, k_list[i], t, 'p')
+                strike_curve.iloc[i] = self.calc_iv(put_prices[i], f, k_list[i], t, 'p')
                 # print('K = %.4f , Put Price = %.4f , ID: %s' % (k_list[i], put_prices[i], put_ids[i]))
                 append_row['Delta'], append_row['Gamma'], append_row['Vega'], append_row['Theta'] = self.calc_greeks(
-                    'p', f, k_list[i], t, strike_curve[k_list[i]])
+                    'p', f, k_list[i], t, strike_curve.iloc[i])
                 greeks = greeks.append(append_row, ignore_index=True)
                 # print('')  # debug line
         strike_curve = strike_curve.dropna()
-        strike_curve = strike_curve.sort_index(ascending=True)
+        # strike_curve = strike_curve.sort_index(ascending=True)
         greeks = greeks.dropna()
         return strike_curve, greeks
 
