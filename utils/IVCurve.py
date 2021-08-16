@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from statsmodels.regression.linear_model import OLS
 from scipy.optimize import curve_fit
 # import matplotlib.ticker as ticker
+import copy
 
 
 class IVCurve(FindContracts):
@@ -91,37 +92,41 @@ class IVCurve(FindContracts):
         count = 0
         cap = self.synfutures_n * 2 + 1
         loc = np.where(np.array(call_ids) == atm_call)[0][0]
-        for n in range(len(call_prices)):
-            if n == 0:
-                if np.isnan(call_prices[loc]) == False \
-                        and np.isnan(put_prices[loc]) == False \
-                        and np.isnan(k_list[loc]) == False:
-                    # S = C + K*e^{-r*t} - P
-                    total += call_prices[loc] - put_prices[loc] + k_list[loc] * np.exp(- r * t)
-                    count += 1
-                    if count == cap:
-                        break
+        print(call_prices[loc], put_prices[loc], k_list[loc])
+        try:
+            for n in range(len(call_prices)):
+                if n == 0:
+                    if np.isnan(call_prices[loc]) == False \
+                            and np.isnan(put_prices[loc]) == False \
+                            and np.isnan(k_list[loc]) == False:
+                        # S = C + K*e^{-r*t} - P
+                        total += call_prices[loc] - put_prices[loc] + k_list[loc] * np.exp(- r * t)
+                        count += 1
+                        if count == cap:
+                            break
+                    else:
+                        cap = self.synfutures_n * 2  # 若ATM价格为nan，取两边
                 else:
-                    cap = self.synfutures_n * 2  # 若ATM价格为nan，取两边
-            else:
-                try:
-                    if loc - n >= 0:
-                        if np.isnan(call_prices[loc+n]) == False \
-                                and np.isnan(put_prices[loc+n]) == False \
-                                and np.isnan(k_list[loc+n]) == False \
-                                and np.isnan(call_prices[loc-n]) == False \
-                                and np.isnan(put_prices[loc-n]) == False \
-                                and np.isnan(k_list[loc-n]) == False:
-                            total += call_prices[loc+n] - put_prices[loc+n] + k_list[loc+n] * np.exp(- r * t) \
-                                     + call_prices[loc-n] - put_prices[loc-n] + k_list[loc-n] * np.exp(- r * t)
-                            count += 2
-                            if count == cap:
-                                break
-                except:
-                    pass
+                    try:
+                        if loc - n >= 0:
+                            if np.isnan(call_prices[loc+n]) == False \
+                                    and np.isnan(put_prices[loc+n]) == False \
+                                    and np.isnan(k_list[loc+n]) == False \
+                                    and np.isnan(call_prices[loc-n]) == False \
+                                    and np.isnan(put_prices[loc-n]) == False \
+                                    and np.isnan(k_list[loc-n]) == False:
+                                total += call_prices[loc+n] - put_prices[loc+n] + k_list[loc+n] * np.exp(- r * t) \
+                                         + call_prices[loc-n] - put_prices[loc-n] + k_list[loc-n] * np.exp(- r * t)
+                                count += 2
+                                if count == cap:
+                                    break
+                    except:
+                        pass
 
-        assert count >= 3
-        f = total / count
+            assert count >= 3
+            f = total / count
+        except:
+            f = np.nan
         return f
 
     def call(self, func, args):
@@ -225,28 +230,54 @@ class IVCurve(FindContracts):
     def calc_delta_curve(self, maturity):
         f = self.fs[maturity]
         t = self.ts[maturity]
-        k = self.greeks[maturity].drop_duplicates(subset='K', keep='first')['K'].to_numpy()
-        log_m = np.log(k / f)
-        y = self.strike_curves[maturity].values ** 2 * t
+        # k = self.greeks[maturity].drop_duplicates(subset='K', keep='first')['K'].to_numpy()
+        # y = pd.DataFrame(self.strike_curves[maturity].values ** 2 * t, columns=['y'])
+        # y = y.drop_duplicates(subset='y', keep='first')['y'].to_numpy()
+
+        # y (IV) 需确保与log_m维度一致，否则OLS矩阵运算报错
+        k = copy.deepcopy(self.greeks[maturity])
+        y = copy.deepcopy(self.strike_curves[maturity])
+        k['iv'] = np.nan
+        for index in y.index:
+            if type(y.loc[index]) == np.float64:
+                k.loc[k['K'] == index, 'iv'] = y.loc[index]
+            else:
+                for i in range(len(y.loc[index])):
+                    k.loc[k[k['K'] == index].index[i], 'iv'] = y.loc[index].iloc[i]
+
+        k['y'] = k['iv'].apply(lambda x: x ** 2 * t)
+        y = k['y'].values
+        log_m = np.log(k['K'].values / f)
+        assert len(log_m) == len(y)
+
         X = np.stack([np.ones(len(log_m)), log_m, log_m**2], axis=1)
-        model = OLS(y, X)
-        results = model.fit()
-        parameterized_iv = np.sqrt(np.dot(X, results.params) / t)
+
         df = pd.DataFrame(columns=['K', 'log_moneyness', 'Delta', 'IV', 'parameterized_IV'])
-        df['K'] = k
+        df['K'] = k['K'].values
         df['log_moneyness'] = log_m
-        df['Delta'] = np.abs(self.greeks[maturity].drop_duplicates(subset='K', keep='first')['Delta'].values)
-        df['IV'] = self.strike_curves[maturity].values
-        df['parameterized_IV'] = parameterized_iv
+        df['Delta'] = np.abs(k['Delta'].values)
+        df['IV'] = k['iv'].values
+
+        try:
+            model = OLS(y, X)
+            results = model.fit()
+            parameterized_iv = np.sqrt(np.dot(X, results.params) / t)
+            df['parameterized_IV'] = parameterized_iv
+        except:
+            df['parameterized_IV'] = np.nan
 
         func = (lambda x, a, b, c: a * x ** 2 + b * x + c)
         deltas = np.round(np.arange(0.1, 0.9+0.05, 0.05), 2)
-        df.drop(df[(np.abs(df['Delta']) < 0.1) | (np.abs(df['Delta']) > 0.9)].index, inplace=True)
-        df.dropna(inplace=True)
-        popt, pcov = curve_fit(func, df['Delta'].to_numpy(), df['parameterized_IV'].to_numpy(),
-                               bounds=([0, -np.inf, -np.inf], [np.inf, np.inf, np.inf]))
-        curve = func(deltas, *popt)
-        curve = pd.Series(index=deltas, data=curve)
+
+        try:
+            df.drop(df[(np.abs(df['Delta']) < 0.1) | (np.abs(df['Delta']) > 0.9)].index, inplace=True)
+            df.dropna(inplace=True)
+            popt, pcov = curve_fit(func, df['Delta'].to_numpy(), df['parameterized_IV'].to_numpy(),
+                                   bounds=([0, -np.inf, -np.inf], [np.inf, np.inf, np.inf]))
+            curve = func(deltas, *popt)
+            curve = pd.Series(index=deltas, data=curve)
+        except:
+            curve = pd.Series(index=deltas, data=np.nan)
         return curve
 
     def get_delta_curves(self, plot=False):
