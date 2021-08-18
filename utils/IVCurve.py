@@ -123,7 +123,7 @@ class IVCurve(FindContracts):
                     except:
                         pass
 
-            assert count >= 3
+            # assert count >= 3
             f = total / count
         except:
             f = np.nan
@@ -224,8 +224,11 @@ class IVCurve(FindContracts):
     def get_strike_curves_and_greeks(self):
         # 根据当前日期对应的当月、次月、季月、次季月合约，调用calc_strike_curve_and_greeks生成对应的strike curve和greeks
         for m in self.maturities:
-            self.strike_curves[m], self.greeks[m] = self.calc_strike_curve_and_greeks(m)
-            # print('')  # debug line
+            try:
+                self.strike_curves[m], self.greeks[m] = self.calc_strike_curve_and_greeks(m)
+            except (ValueError, AttributeError):
+                self.strike_curves[m], self.greeks[m] = None, None
+                # print('')  # debug line
 
     def calc_delta_curve(self, maturity):
         f = self.fs[maturity]
@@ -285,9 +288,12 @@ class IVCurve(FindContracts):
             fig, ax = plt.subplots(figsize=(8, 6))
             ax.set_xlim(0, 1)
         for m in self.maturities:
-            self.delta_curves[m] = self.calc_delta_curve(m)
-            if plot:
-                ax.plot(self.delta_curves[m].index, self.delta_curves[m].values, label=self.names[m])
+            try:
+                self.delta_curves[m] = self.calc_delta_curve(m)
+                if plot:
+                    ax.plot(self.delta_curves[m].index, self.delta_curves[m].values, label=self.names[m])
+            except KeyError:
+                self.delta_curves[m] = None
         if plot:
             ax.set_title('%s Delta Curve' % datetime.strftime(self.date, '%Y-%m-%d %H:%M:%S'))
             ax.set_xlabel('Delta')
@@ -379,38 +385,45 @@ class IVCurve(FindContracts):
 
     def get_ivs(self, *kargs, method='fit'):
         for m in self.maturities:
-            if method == 'fit':
-                self.atm_ivs[self.names[m]] = float(self.delta_curves[m][0.5])
-                delta_call_ivs = {}
-                delta_put_ivs = {}
-                for delta in kargs:
-                    delta_call_ivs[delta] = float(self.delta_curves[m][1 - delta])
-                    delta_put_ivs[delta] = float(self.delta_curves[m][delta])  # CAUTION: 注意此处应为-delta
-                self.delta_call_ivs[self.names[m]] = delta_call_ivs
-                self.delta_put_ivs[self.names[m]] = delta_put_ivs
-            # else:
-            #     self.atm_ivs[self.names[m]] = self.strike_curves[m][self.atm_ks[m]]
-            #     delta_call_ivs = {}
-            #     delta_put_ivs = {}
-            #     for delta in kargs:
-            #         # 寻找距delta最近的call, put iv
-            #         delta_call_ivs[delta] = self.call_wings[m].values[
-            #             np.argmin(np.abs(np.array(self.call_wings[m].keys()) - delta))]
-            #         delta_put_ivs[delta] = self.put_wings[m].values[
-            #             np.argmin(np.abs(np.array(self.put_wings[m].keys()) + delta))]  # CAUTION: 注意此处应为 - -delta = + delta
-            #     self.delta_call_ivs[self.names[m]] = delta_call_ivs
-            #     self.delta_put_ivs[self.names[m]] = delta_put_ivs
+            try:
+                if method == 'fit':
+                    self.atm_ivs[self.names[m]] = float(self.delta_curves[m][0.5])
+                    delta_call_ivs = {}
+                    delta_put_ivs = {}
+                    for delta in kargs:
+                        delta_call_ivs[delta] = float(self.delta_curves[m][1 - delta])
+                        delta_put_ivs[delta] = float(self.delta_curves[m][delta])  # CAUTION: 注意此处应为-delta
+                    self.delta_call_ivs[self.names[m]] = delta_call_ivs
+                    self.delta_put_ivs[self.names[m]] = delta_put_ivs
+                # else:
+                #     self.atm_ivs[self.names[m]] = self.strike_curves[m][self.atm_ks[m]]
+                #     delta_call_ivs = {}
+                #     delta_put_ivs = {}
+                #     for delta in kargs:
+                #         # 寻找距delta最近的call, put iv
+                #         delta_call_ivs[delta] = self.call_wings[m].values[
+                #             np.argmin(np.abs(np.array(self.call_wings[m].keys()) - delta))]
+                #         delta_put_ivs[delta] = self.put_wings[m].values[
+                #             np.argmin(np.abs(np.array(self.put_wings[m].keys()) + delta))]  # CAUTION: 注意此处应为 - -delta = + delta
+                #     self.delta_call_ivs[self.names[m]] = delta_call_ivs
+                #     self.delta_put_ivs[self.names[m]] = delta_put_ivs
+            except TypeError:
+                self.atm_ivs[self.names[m]], self.delta_call_ivs[self.names[m]], \
+                    self.delta_put_ivs[self.names[m]] = None, None, None
 
     def get_skewness(self):
         for m in self.maturities:
-            skew = {}
-            skew['both'] = (self.delta_put_ivs[self.names[m]][0.25] -
-                            self.delta_call_ivs[self.names[m]][0.25]) / self.atm_ivs[self.names[m]]
-            skew['left'] = (self.delta_put_ivs[self.names[m]][0.25] -
-                            self.atm_ivs[self.names[m]]) / self.atm_ivs[self.names[m]]
-            skew['right'] = (self.delta_call_ivs[self.names[m]][0.25] -
-                             self.atm_ivs[self.names[m]]) / self.atm_ivs[self.names[m]]
-            self.skew[self.names[m]] = skew
+            try:
+                skew = {}
+                skew['both'] = (self.delta_put_ivs[self.names[m]][0.25] -
+                                self.delta_call_ivs[self.names[m]][0.25]) / self.atm_ivs[self.names[m]]
+                skew['left'] = (self.delta_put_ivs[self.names[m]][0.25] -
+                                self.atm_ivs[self.names[m]]) / self.atm_ivs[self.names[m]]
+                skew['right'] = (self.delta_call_ivs[self.names[m]][0.25] -
+                                 self.atm_ivs[self.names[m]]) / self.atm_ivs[self.names[m]]
+                self.skew[self.names[m]] = skew
+            except TypeError:
+                self.skew[self.names[m]] = None
 
     def curve_to_df(self, curves, maturity):
         df = pd.DataFrame(

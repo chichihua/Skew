@@ -53,15 +53,17 @@ class WeekdayLocator:
         # w.start()
         trading_dates = w.tdays(self.start_date, self.end_date, "").Data[0]
 
-        if is_holiday(located_date) and located_date not in trading_dates:
-            increment = 1
-            while located_date + timedelta(days=increment) not in trading_dates:
-                increment += 1
-            assert is_workday(located_date + timedelta(days=increment))
-            located_date += timedelta(days=increment)
-            print('Skip', located_date + timedelta(days=-increment), 'to', located_date)
-
-        return datetime.strptime(str(located_date), '%Y-%m-%d')
+        try:
+            if is_holiday(located_date) and located_date not in trading_dates:
+                increment = 1
+                while located_date + timedelta(days=increment) not in trading_dates:
+                    increment += 1
+                assert is_workday(located_date + timedelta(days=increment))
+                located_date += timedelta(days=increment)
+                print('Skip', located_date + timedelta(days=-increment), 'to', located_date)
+            return datetime.strptime(str(located_date), '%Y-%m-%d')
+        except NotImplementedError:
+            return None
 
     def locate(self):
         return self.adjust_with_chinese_holidays()
