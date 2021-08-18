@@ -12,10 +12,10 @@ if __name__ == '__main__':
     close_info = pd.read_excel('./data/Opt_ID.xlsx', sheet_name='收盘价', usecols='A:C', index_col=0, skiprows=3)
 
     # ================================ 参数调整 ================================ #
-    start_date = '2019-01-01'
-    end_date = '2019-06-01'
-    dates = [d for d in w.tdays(start_date, end_date, '').Data[0]]
-    # dates = [datetime.strptime('2019-01-23', '%Y-%m-%d')]
+    # start_date = '2017-01-01'
+    # end_date = '2017-03-01'
+    # dates = [d for d in w.tdays(start_date, end_date, '').Data[0]]
+    dates = [datetime.strptime('2017-01-03', '%Y-%m-%d')]
 
     tt = 0                            # 剩余交易天数 < tt: 剔除该月份合约
     # ======================== 以下参数如不设置则为默认值 ======================== #
@@ -60,6 +60,9 @@ if __name__ == '__main__':
         append_df = pd.DataFrame(columns=cols, index=[date])
         for m in ivc.maturities:
             for k in ['both', 'left', 'right']:
-                append_df[(ivc.names[m], k)] = ivc.skew[ivc.names[m]][k]
+                try:
+                    append_df[(ivc.names[m], k)] = ivc.skew[ivc.names[m]][k]
+                except TypeError:
+                    append_df[(ivc.names[m], k)] = np.nan
         summary = summary.append(append_df)
         summary.to_excel('./data/summary.xlsx')
