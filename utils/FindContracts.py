@@ -71,7 +71,8 @@ class WeekdayLocator:
 
 class FindContracts(object):
 
-    def __init__(self, date, close_info, contract_info, underlying='510050.SH', n1=6, n2=5, n3=4):
+    def __init__(self, date, close_info, contract_info, underlying='510050.SH', exclude_a=True, tt=0,
+                 n1=6, n2=5, n3=4):
         # w.start()
         if type(date) != datetime:
             self.date = datetime.strptime(date, '%Y-%m-%d')
@@ -83,6 +84,8 @@ class FindContracts(object):
         self.underlying = underlying
         # self.s = close_info.loc[date, underlying]
         self.s = w.wsd(self.underlying, 'close', self.date, self.date, '').Data[0][0]
+        self.exclude_a = exclude_a
+        self.tt = tt
         self.n1 = n1
         self.n2 = n2
         self.n3 = n3
@@ -91,8 +94,9 @@ class FindContracts(object):
     def locate_4m(self):
         # 定位当月、次月、季月、次季月对应合约到期日
         current_month_maturity = WeekdayLocator(self.date.year, self.date.month).locate()
-        if self.date < current_month_maturity:  # 未到当月行权日，以当月到期合约为当月合约
+        if w.tdaysoffset(self.tt, self.date, "").Data[0][0] < current_month_maturity:  # 未到当月行权日，以当月到期合约为当月合约
             m00 = current_month_maturity
+            # print('')
         else:  # 已过当月行权日，以下月到期合约为当月合约
             m00 = WeekdayLocator(
                 self.date.year + (self.date.month/12 == 1),
@@ -132,18 +136,34 @@ class FindContracts(object):
         else:
             n = self.n3
         # 定位行权日该标的所有行权价的call、put合约，并根据行权价升序排列
-        calls = self.contract_info[
-            (self.contract_info['行权日'] == pd.Timestamp(maturity.date()))
-            & (self.contract_info['标的代码'] == int(self.underlying.replace('.SH', '')))
-            & (self.contract_info['简称'].str.contains('购'))
-            ].sort_values(by='行权价', ascending=True)
-        calls = calls[~calls.index.duplicated(keep='first')]  # 确保无重复期权ID使wsd函数报错
-        puts = self.contract_info[
-            (self.contract_info['行权日'] == pd.Timestamp(maturity.date()))
-            & (self.contract_info['标的代码'] == int(self.underlying.replace('.SH', '')))
-            & (self.contract_info['简称'].str.contains('沽'))
-            ].sort_values(by='行权价', ascending=True)
-        puts = puts[~puts.index.duplicated(keep='first')]  # 确保无重复期权ID使wsd函数报错
+        if self.exclude_a:
+            calls = self.contract_info[
+                (self.contract_info['行权日'] == pd.Timestamp(maturity.date()))
+                & (self.contract_info['标的代码'] == int(self.underlying.replace('.SH', '')))
+                & (self.contract_info['简称'].str.contains('购'))
+                & (self.contract_info['简称'].str.contains('A') == False)
+                ].sort_values(by='行权价', ascending=True)
+            calls = calls[~calls.index.duplicated(keep='first')]  # 确保无重复期权ID使wsd函数报错
+            puts = self.contract_info[
+                (self.contract_info['行权日'] == pd.Timestamp(maturity.date()))
+                & (self.contract_info['标的代码'] == int(self.underlying.replace('.SH', '')))
+                & (self.contract_info['简称'].str.contains('沽'))
+                & (self.contract_info['简称'].str.contains('A') == False)
+                ].sort_values(by='行权价', ascending=True)
+            puts = puts[~puts.index.duplicated(keep='first')]  # 确保无重复期权ID使wsd函数报错
+        else:
+            calls = self.contract_info[
+                (self.contract_info['行权日'] == pd.Timestamp(maturity.date()))
+                & (self.contract_info['标的代码'] == int(self.underlying.replace('.SH', '')))
+                & (self.contract_info['简称'].str.contains('购'))
+                ].sort_values(by='行权价', ascending=True)
+            calls = calls[~calls.index.duplicated(keep='first')]  # 确保无重复期权ID使wsd函数报错
+            puts = self.contract_info[
+                (self.contract_info['行权日'] == pd.Timestamp(maturity.date()))
+                & (self.contract_info['标的代码'] == int(self.underlying.replace('.SH', '')))
+                & (self.contract_info['简称'].str.contains('沽'))
+                ].sort_values(by='行权价', ascending=True)
+            puts = puts[~puts.index.duplicated(keep='first')]  # 确保无重复期权ID使wsd函数报错
         assert all(calls['行权价'].values == puts['行权价'].values)  # assert call、put合约行权价一致
         # 定位ATM K
         diff = np.abs(calls['行权价'].values - self.s)

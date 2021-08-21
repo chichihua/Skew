@@ -16,9 +16,9 @@ import copy
 
 class IVCurve(FindContracts):
 
-    def __init__(self, date, maturities, close_info, contract_info, underlying='510050.SH', n1=6, n2=5, n3=4,
-                 synfutures_n=2, method='bs', r_bs=0.03, r_black=0):
-        super(IVCurve, self).__init__(date, close_info, contract_info, underlying, n1, n2, n3)
+    def __init__(self, date, maturities, close_info, contract_info, underlying='510050.SH', exclude_a=True, tt=0,
+                 n1=6, n2=5, n3=4, synfutures_n=2, method='bs', r_bs=0.03, r_black=0):
+        super(IVCurve, self).__init__(date, close_info, contract_info, underlying, exclude_a, tt, n1, n2, n3)
         self.synfutures_n = synfutures_n  # 计算合成期货时使用上下几档
         self.method = method  # 'bs' or 'black'
         if self.method == 'bs':

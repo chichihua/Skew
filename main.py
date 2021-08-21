@@ -15,13 +15,14 @@ if __name__ == '__main__':
     # start_date = '2017-01-01'
     # end_date = '2017-03-01'
     # dates = [d for d in w.tdays(start_date, end_date, '').Data[0]]
-    dates = [datetime.strptime('2017-01-03', '%Y-%m-%d')]
+    dates = [datetime.strptime('2019-02-25', '%Y-%m-%d')]
 
-    tt = 0                            # 剩余交易天数 < tt: 剔除该月份合约
     # ======================== 以下参数如不设置则为默认值 ======================== #
     kwargs = {
         'underlying': '510050.SH',  # 标的, 默认50ETF: '510050.SH'
-        'n1': 6,                    # S在3以下取上下n1档, 默认6
+        'exclude_a': True,          # 是否剔除带A的合约，默认剔除
+        'tt': 5,                    # 剩余交易天数 < tt: 剔除该月份合约
+        'n1': 15,                   # S在3以下取上下n1档, 默认6
         'n2': 5,                    # S在5以下取上下n2档, 默认5
         'n3': 4,                    # S在5以上取上下n3档, 默认4
         'synfutures_n': 2,          # 计算合成期货时使用上下synfutures_n档, 默认2
@@ -38,7 +39,10 @@ if __name__ == '__main__':
     for date in bar:
         bar.set_description("Processing %s" % datetime.strftime(date, '%Y-%m-%d %H:%M:%S'))
         if maturities is None or date >= maturities[0]:
-            fc = FindContracts(date, close_info, contract_info)
+            try:
+                fc = FindContracts(date, close_info, contract_info, tt=kwargs['tt'])
+            except NameError:
+                fc = FindContracts(date, close_info, contract_info)
             maturities = fc.locate_4m()
             # fc.filter_maturities(tt)  # 调用：剩余交易天数 < tt: 剔除该月份合约
         try:

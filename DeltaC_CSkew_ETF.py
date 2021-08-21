@@ -46,7 +46,7 @@ t1 =5###到期前t1天换主力月合约,159合约 t1 = -10,连月合约 t1 = -6
 
 ######读取Opt_ID_Excel
 # RData= pd.read_excel('D:\安信工作文件\Excel_Greeks监控\ETF_Skew\Skew//50Opt_ID.xlsx')  # today成交流水
-RData= pd.read_excel('./data/Opt_ID.xlsx')  # today成交流水
+RData= pd.read_excel('./data/50Opt_ID.xlsx')  # today成交流水
 
 OptID = RData.drop(0)
 
@@ -227,6 +227,8 @@ def iv_parameterization(otm_data, weighting=0):
     Y = group['yk']
     group['weights'] = group['VEGA'] 
 
+    weighting = 0
+
     if weighting and not group['weights'].isna().all():
         weighted_X = pd.DataFrame(columns=X.columns)
         weighted_Y = pd.DataFrame()
@@ -252,8 +254,8 @@ def delta_surface_building(group):
     deltas = [0.05 * i for i in range(2, 19)]
     columns = deltas
     curves = pd.DataFrame(columns=columns)
-    #group.drop(group[(group['DELTA'] < 0.1) | (group['DELTA'] > 0.9)].index, inplace=True)
-    group.drop(group[(group['DELTA'] < 0.05) | (group['DELTA'] > 0.95)].index, inplace=True)
+    group.drop(group[(group['DELTA'] < 0.1) | (group['DELTA'] > 0.9)].index, inplace=True)
+    # group.drop(group[(group['DELTA'] < 0.05) | (group['DELTA'] > 0.95)].index, inplace=True)
     group.dropna(inplace=True)
     if group.shape[0] >= N:
         X = np.array(group['DELTA'])
@@ -261,6 +263,7 @@ def delta_surface_building(group):
         popt, pcov = curve_fit(func, X, Y, bounds=([0, -np.inf, -np.inf], [np.inf, np.inf, np.inf]))
         # popt, pcov = curve_fit(func, X, Y, bounds=([0, -np.inf, -np.inf, -np.inf], [np.inf, np.inf, np.inf, np.inf]))
         curves = list(func(np.array(deltas), *popt))
+        # print('')
     else: #return NA
         curves = list(np.array(deltas) * np.nan)         
     return curves #ATM_IV里仅包含当期合约个数小于5的到期日和ATM IV，合约数>=5的不包含在内
